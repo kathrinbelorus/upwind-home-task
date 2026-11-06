@@ -49,6 +49,8 @@ function buildResultCard(email, result) {
     )
     .addWidget(CardService.newTextParagraph().setText(style.advice));
 
+  const aiSection = result.ai ? buildAiSection(result.ai) : null;
+
   const reasons = CardService.newCardSection().setHeader('Why');
   if (result.findings.length === 0) {
     reasons.addWidget(CardService.newTextParagraph().setText('No warning signs found.'));
@@ -83,13 +85,30 @@ function buildResultCard(email, result) {
     )
   );
 
-  return CardService.newCardBuilder()
+  const card = CardService.newCardBuilder()
     .setHeader(CardService.newCardHeader().setTitle('Mail Scorer'))
-    .addSection(summary)
-    .addSection(reasons)
-    .addSection(message)
-    .addSection(footer)
-    .build();
+    .addSection(summary);
+  if (aiSection) {
+    card.addSection(aiSection);
+  }
+  return card.addSection(reasons).addSection(message).addSection(footer).build();
+}
+
+const AI_RISK_LABEL = { low: 'Low risk', medium: 'Medium risk', high: 'High risk' };
+
+/**
+ * @param {{risk: string, summary: string}} ai
+ */
+function buildAiSection(ai) {
+  return CardService.newCardSection()
+    .setHeader('🤖 AI assessment')
+    .addWidget(
+      CardService.newDecoratedText()
+        .setTopLabel('Gemini')
+        .setText(`<b>${AI_RISK_LABEL[ai.risk]}</b><br>${escapeHtml(ai.summary)}`)
+        .setBottomLabel('AI-generated opinion, may be wrong')
+        .setWrapText(true)
+    );
 }
 
 /**

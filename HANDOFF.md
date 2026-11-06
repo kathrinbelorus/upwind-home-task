@@ -15,7 +15,8 @@ The backend must be on public HTTPS, because Apps Script runs on Google's server
 - [x] **Step 2a: Backend, local.** `POST /analyze` with five checks (authentication, sender, links, content, attachments). 16 tests pass.
 - [x] **Step 2b: Backend on Cloud Run** (`me-west1`). API key comes from Secret Manager, `/docs` is disabled in production, max 2 instances.
 - [x] **Step 3: Connect.** The add-on extracts the email, calls `/analyze` with `X-API-Key`, validates the response and renders the verdict, score and findings. Working live in Gmail.
-- [ ] **README.md**
+- [x] **README.md** (short version, with a screenshot slot at `docs/screenshot.png`)
+- [x] **Gemini AI opinion** (`backend/app/ai.py`, model `gemini-3.5-flash-lite`). Adds +0/10/20 points, never negative. Fail-open, with one retry on 429/5xx. Live on Cloud Run, and 27 tests pass.
 
 ## Backend layout
 ```
@@ -43,7 +44,7 @@ Interactive docs: http://127.0.0.1:8000/docs
 One-time setup: a GCP project with billing, the Cloud Run, Cloud Build, Artifact Registry and Secret Manager APIs enabled, a secret `mail-scorer-api-key`, and the Secret Accessor role granted to the Compute default service account.
 ```bash
 cd backend
-gcloud run deploy mail-scorer --source . --region me-west1 --allow-unauthenticated --set-secrets API_KEY=mail-scorer-api-key:latest --set-env-vars ENABLE_DOCS=false --max-instances 2 --memory 512Mi
+gcloud run deploy mail-scorer --source . --region me-west1 --allow-unauthenticated --set-secrets API_KEY=mail-scorer-api-key:latest,GEMINI_API_KEY=gemini-api-key:latest --set-env-vars ENABLE_DOCS=false --max-instances 2 --memory 512Mi
 ```
 `--allow-unauthenticated` is intentional: the add-on authenticates with the `X-API-Key` header.
 

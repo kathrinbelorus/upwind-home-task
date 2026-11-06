@@ -26,7 +26,7 @@ def test_analyze_returns_result():
     response = client.post("/analyze", json=EMAIL, headers=AUTH)
     assert response.status_code == 200
     body = response.json()
-    assert set(body) == {"score", "verdict", "findings"}
+    assert set(body) == {"score", "verdict", "findings", "ai"}
 
 
 def test_oversized_input_is_rejected():

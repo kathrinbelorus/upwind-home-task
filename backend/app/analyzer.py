@@ -2,6 +2,7 @@
 
 import logging
 
+from app import ai
 from app.checks import ALL_CHECKS
 from app.models import AnalysisResult, EmailIn, Finding, Verdict
 from app.parsing import parse_email
@@ -32,6 +33,17 @@ def analyze_email(email: EmailIn) -> AnalysisResult:
             # Log only the check name, never email content.
             logger.exception("Check %s failed", check.NAME)
 
+    opinion = ai.assess(parsed)
+    if opinion and ai.POINTS[opinion.risk]:
+        findings.append(
+            Finding(
+                check="ai",
+                title=f"AI rated this email {opinion.risk} risk",
+                detail="Gemini's reading of the text points to phishing or a scam.",
+                points=ai.POINTS[opinion.risk],
+            )
+        )
+
     findings.sort(key=lambda f: f.points, reverse=True)
     score = min(100, sum(f.points for f in findings))
-    return AnalysisResult(score=score, verdict=verdict_for(score), findings=findings)
+    return AnalysisResult(score=score, verdict=verdict_for(score), findings=findings, ai=opinion)

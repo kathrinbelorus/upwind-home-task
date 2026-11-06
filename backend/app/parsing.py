@@ -28,6 +28,7 @@ class ParsedEmail:
     domain: str
     reply_to_domain: str
     subject: str
+    body: str  # visible body text, original case
     text: str  # subject + visible body text, lowercased
     links: list[Link]
     attachments: list[Attachment]
@@ -98,6 +99,7 @@ def parse_email(email: EmailIn) -> ParsedEmail:
         domain=_domain_of(address),
         reply_to_domain=_domain_of(reply_to_address),
         subject=email.subject,
+        body=body,
         text=" ".join(f"{email.subject} {body}".lower().split()),
         links=links,
         attachments=email.attachments,

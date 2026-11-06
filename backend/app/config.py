@@ -14,6 +14,11 @@ class Settings(BaseSettings):
     api_key: SecretStr = Field(min_length=16)
     enable_docs: bool = True
 
+    # Optional. Without a key the AI assessment is skipped and the rules run alone.
+    gemini_api_key: SecretStr | None = None
+    # A small, fast model is enough for a capped classification signal.
+    gemini_model: str = "gemini-3.5-flash-lite"
+
 
 @lru_cache
 def get_settings() -> Settings:

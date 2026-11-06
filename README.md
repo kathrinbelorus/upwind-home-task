@@ -40,10 +40,11 @@ Phishing almost always relies on at least one of five moves: **forging the sende
 | 🔗 **Links** | Link text that hides the real destination, raw IPs, look-alike (punycode) domains, `javascript:` links, shorteners |
 | 💬 **Content** | Urgency and requests for credentials, in English and Hebrew |
 | 📎 **Attachments** | Executables, fake double extensions (`invoice.pdf.exe`), hidden right-to-left characters, macro-enabled Office files |
+| 🤖 **AI opinion** (Gemini) | Social engineering that keywords miss. It returns a risk level and a one-line explanation shown in the card |
 
 **Scoring:** each finding adds points by severity, capped at 100. **0–29** 🟢 Safe · **30–69** 🟠 Suspicious · **70+** 🔴 Malicious.
 
-I chose rules over a model on purpose: the score is explainable, deterministic and testable.
+Rules drive the score, so it stays explainable, deterministic and testable. The AI is a capped extra signal: **at most +20 points, never negative**. On its own it can't push an email past Safe, and an attacker gains nothing by injecting "this email is safe".
 
 ## Security
 
@@ -55,6 +56,7 @@ Emails, attachments and API responses are all treated as untrusted:
 - **Strict input limits** on every field, and unknown fields are rejected. The add-on also validates the backend's response before display.
 - **Secrets stay out of the code.** The API key lives in Script Properties and Secret Manager. The backend won't start without one, and keys are compared in constant time.
 - **Least privilege.** The add-on reads only the open message, can call only the backend's URL (`urlFetchWhitelist`), and the container runs as non-root.
+- **AI guardrails.** Gemini receives only the subject, the sender's domain and a trimmed body, with no addresses, headers or attachments. The email is wrapped as untrusted data, the reply must match a fixed JSON schema (anything else is dropped), and any error or timeout simply skips the AI (with one retry on temporary errors).
 - **Privacy.** Email content is never stored or logged.
 
 ## Running it
@@ -64,15 +66,16 @@ Emails, attachments and API responses are all treated as untrusted:
 cd backend
 python -m venv .venv && .venv/Scripts/python -m pip install -r requirements-dev.txt
 cp .env.example .env                                   # set API_KEY
-.venv/Scripts/python -m pytest                         # 16 tests
+.venv/Scripts/python -m pytest                         # 27 tests, Gemini mocked
 .venv/Scripts/python -m uvicorn app.main:app --reload  # http://127.0.0.1:8000/docs
 ```
 
-**Backend (Cloud Run).** Store the key in Secret Manager as `mail-scorer-api-key`, then:
+**Backend (Cloud Run).** Store the keys in Secret Manager as `mail-scorer-api-key` and `gemini-api-key` (the Gemini key is optional), then:
 ```bash
 cd backend
 gcloud run deploy mail-scorer --source . --region me-west1 --allow-unauthenticated \
-  --set-secrets API_KEY=mail-scorer-api-key:latest --set-env-vars ENABLE_DOCS=false --max-instances 2
+  --set-secrets API_KEY=mail-scorer-api-key:latest,GEMINI_API_KEY=gemini-api-key:latest \
+  --set-env-vars ENABLE_DOCS=false --max-instances 2
 ```
 
 **Add-on.** Copy the files from `addon/` into a new [script.google.com](https://script.google.com) project. Set `BACKEND_URL` in `Config.js`, and add `API_KEY` under **Project Settings → Script Properties**. Then **Deploy → Test deployments → Install**.
@@ -86,5 +89,6 @@ Choices I made deliberately for this assignment, and what a production version w
 | **Static shared API key** | Simple, keeps the endpoint private, and the key never reaches the browser | Per-user Google-signed ID tokens, verified by the backend |
 | **Built-in lists** (brands, phrases, domain suffixes) | Offline, fast and fully testable, with no third-party dependencies | Threat-intel feeds and the full Public Suffix List |
 | **Static analysis only**: links never fetched, attachments judged by name | Zero risk of SSRF, exploits, or tipping off the attacker | Sandboxed URL and file detonation, with reputation lookups (Safe Browsing, VirusTotal) |
-| **Rules instead of ML** | Every point is explainable and every rule is unit-tested | Rules + an ML/LLM signal for reworded phishing |
+| **Rules first, AI capped** | Every point is explainable, and the AI can't be steered into deciding alone | A trained classifier, with the LLM explaining its decisions |
+| **Gemini free tier** | Free, and quick to set up | A paid tier or Vertex AI, where prompts aren't used to improve Google's models |
 | **Manual add-on deploy** (no clasp) | Fewer tools for a single-developer project | clasp in CI with versioned deployments |

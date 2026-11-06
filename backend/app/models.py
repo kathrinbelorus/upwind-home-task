@@ -45,7 +45,13 @@ class Finding(BaseModel):
     points: int = Field(ge=0, le=100)
 
 
+class AiAssessment(BaseModel):
+    risk: Literal["low", "medium", "high"]
+    summary: str = Field(max_length=300)
+
+
 class AnalysisResult(BaseModel):
     score: int = Field(ge=0, le=100)
     verdict: Verdict
     findings: list[Finding]
+    ai: AiAssessment | None = Field(default=None, description="Gemini's opinion, if available")

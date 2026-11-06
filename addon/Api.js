@@ -5,6 +5,7 @@
  */
 
 const VERDICTS = ['Safe', 'Suspicious', 'Malicious'];
+const AI_RISKS = ['low', 'medium', 'high'];
 const MAX_FINDINGS = 20;
 
 class BackendError extends Error {
@@ -67,5 +68,18 @@ function validateResult(data) {
       detail: truncate(finding.detail, 400),
       points: Math.max(0, Math.min(100, Number(finding.points) || 0)),
     })),
+    ai: validateAi(data.ai),
   };
+}
+
+/**
+ * The AI opinion is optional: anything unexpected is simply dropped.
+ * @param {*} ai
+ * @return {?{risk: string, summary: string}}
+ */
+function validateAi(ai) {
+  if (!ai || AI_RISKS.indexOf(ai.risk) === -1 || typeof ai.summary !== 'string') {
+    return null;
+  }
+  return { risk: ai.risk, summary: truncate(ai.summary, 300) };
 }
