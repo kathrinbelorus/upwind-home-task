@@ -22,12 +22,14 @@ No black box: every point in the score comes from a finding you can read.
 flowchart LR
     A[📧 User opens an email] --> B[Add-on<br/>Apps Script]
     B -- "POST /analyze<br/>+ API key" --> C[Backend<br/>FastAPI on Cloud Run]
+    C -- "subject, domain,<br/>trimmed body" --> E[🤖 Gemini]
+    E -- "risk + summary" --> C
     C -- "score, verdict, findings" --> B
     B --> D[🟢🟠🔴 Verdict card<br/>in Gmail]
 ```
 
 - **Add-on** ([`addon/`](addon)): reads the open email, sends it to the backend, and renders the result. A thin client: it never decides anything itself.
-- **Backend** ([`backend/`](backend)): Python + FastAPI on Google Cloud Run. All the detection logic lives here, so rules can change without redeploying the add-on. Each check is a separate module in [`backend/app/checks/`](backend/app/checks).
+- **Backend** ([`backend/`](backend)): Python + FastAPI on Google Cloud Run. All the detection logic lives here, so rules can change without redeploying the add-on. Each check is a separate module in [`backend/app/checks/`](backend/app/checks), and the optional Gemini opinion lives in [`backend/app/ai.py`](backend/app/ai.py).
 
 ## What it checks
 
@@ -78,7 +80,7 @@ gcloud run deploy mail-scorer --source . --region me-west1 --allow-unauthenticat
   --set-env-vars ENABLE_DOCS=false --max-instances 2
 ```
 
-**Add-on.** Copy the files from `addon/` into a new [script.google.com](https://script.google.com) project. Set `BACKEND_URL` in `Config.js`, and add `API_KEY` under **Project Settings → Script Properties**. Then **Deploy → Test deployments → Install**.
+**Add-on.** Copy the files from `addon/` into a new [script.google.com](https://script.google.com) project (enable **Show "appsscript.json"** in Project Settings to edit the manifest). Put your Cloud Run URL in both `BACKEND_URL` in `Config.js` and `urlFetchWhitelist` in `appsscript.json`, and add `API_KEY` under **Project Settings → Script Properties**. Then **Deploy → Test deployments → Install**.
 
 ## Scope decisions
 
@@ -92,3 +94,4 @@ Choices I made deliberately for this assignment, and what a production version w
 | **Rules first, AI capped** | Every point is explainable, and the AI can't be steered into deciding alone | A trained classifier, with the LLM explaining its decisions |
 | **Gemini free tier** | Free, and quick to set up | A paid tier or Vertex AI, where prompts aren't used to improve Google's models |
 | **Manual add-on deploy** (no clasp) | Fewer tools for a single-developer project | clasp in CI with versioned deployments |
+| **Missing auth header = +10** | Gmail adds SPF/DKIM/DMARC results to every external email, so a missing header is unusual. Known side effect: an email you send to yourself has no such header and gets +10 | Recognize internal mail and skip the penalty |
