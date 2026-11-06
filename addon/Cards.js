@@ -1,7 +1,26 @@
 /**
  * UI layer: builds the cards shown in the Gmail side panel.
- * Kept separate from Main.js so the UI can change without touching the logic.
+ * Card text supports basic HTML, so every value that came from the email or
+ * from the backend is passed through escapeHtml() before display.
  */
+
+const VERDICT_STYLE = {
+  Safe: {
+    icon: '🟢',
+    color: '#188038',
+    advice: 'No significant warning signs were found.',
+  },
+  Suspicious: {
+    icon: '🟠',
+    color: '#e37400',
+    advice: "Be careful. Don't click links or open attachments unless you trust the sender.",
+  },
+  Malicious: {
+    icon: '🔴',
+    color: '#d93025',
+    advice: "This looks like phishing or malware. Don't click links, open attachments or reply.",
+  },
+};
 
 function buildHomepageCard() {
   return CardService.newCardBuilder()
@@ -16,16 +35,39 @@ function buildHomepageCard() {
 
 /**
  * @param {{from: string, subject: string}} email
+ * @param {{score: number, verdict: string, findings: Array<Object>}} result
  */
-function buildMessageCard(email) {
-  // Email fields are untrusted input. Card text supports basic HTML,
-  // so every value from the email is escaped before display.
-  const section = CardService.newCardSection()
+function buildResultCard(email, result) {
+  const style = VERDICT_STYLE[result.verdict];
+
+  const summary = CardService.newCardSection()
     .addWidget(
       CardService.newDecoratedText()
-        .setTopLabel('From')
-        .setText(escapeHtml(email.from))
-        .setWrapText(true)
+        .setTopLabel('Verdict')
+        .setText(`<font color="${style.color}"><b>${style.icon} ${result.verdict}</b></font>`)
+        .setBottomLabel(`Risk score: ${result.score} / 100`)
+    )
+    .addWidget(CardService.newTextParagraph().setText(style.advice));
+
+  const reasons = CardService.newCardSection().setHeader('Why');
+  if (result.findings.length === 0) {
+    reasons.addWidget(CardService.newTextParagraph().setText('No warning signs found.'));
+  } else {
+    result.findings.forEach((finding) => {
+      reasons.addWidget(
+        CardService.newDecoratedText()
+          .setTopLabel(`+${finding.points} · ${escapeHtml(finding.check)}`)
+          .setText(`<b>${escapeHtml(finding.title)}</b><br>${escapeHtml(finding.detail)}`)
+          .setWrapText(true)
+      );
+    });
+  }
+
+  const message = CardService.newCardSection()
+    .setHeader('Message')
+    .setCollapsible(true)
+    .addWidget(
+      CardService.newDecoratedText().setTopLabel('From').setText(escapeHtml(email.from)).setWrapText(true)
     )
     .addWidget(
       CardService.newDecoratedText()
@@ -34,23 +76,36 @@ function buildMessageCard(email) {
         .setWrapText(true)
     );
 
+  const footer = CardService.newCardSection().addWidget(
+    CardService.newTextParagraph().setText(
+      '<font color="#5f6368">Automated analysis of headers, links, text and attachment names. ' +
+        'Links and files are never opened. Results can be wrong.</font>'
+    )
+  );
+
   return CardService.newCardBuilder()
     .setHeader(CardService.newCardHeader().setTitle('Mail Scorer'))
-    .addSection(section)
+    .addSection(summary)
+    .addSection(reasons)
+    .addSection(message)
+    .addSection(footer)
     .build();
 }
 
 /**
- * Escapes characters that the card renderer would treat as HTML.
- * Without this, "Name <a@b.com>" is shown as just "Name", and an attacker
- * could inject formatting or links into the panel.
- * @param {string} text
- * @return {string}
+ * @param {string} reason Safe, non-sensitive explanation for the user.
  */
-function escapeHtml(text) {
-  return String(text)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+function buildErrorCard(reason) {
+  return CardService.newCardBuilder()
+    .setHeader(CardService.newCardHeader().setTitle('Mail Scorer'))
+    .addSection(
+      CardService.newCardSection()
+        .addWidget(
+          CardService.newDecoratedText()
+            .setTopLabel('Error')
+            .setText("<b>Couldn't analyze this email</b>")
+        )
+        .addWidget(CardService.newTextParagraph().setText(escapeHtml(reason)))
+    )
+    .build();
 }
